@@ -146,8 +146,8 @@ def extend(circuit, node_router):
     public_Y = extended_cell.handshake_data[:32]  # Node's public key, Y
     auth_digest = extended_cell.handshake_data[32:]
 
-    shared_X__y = raise_exponent(private_x ,public_Y) #! CHECK BACK
-    shared_X__b = raise_exponent(private_x ,public_B) #! '' '' ''
+    shared_X__y = raise_exponent(public_Y, private_x) #! CHECK BACK
+    shared_X__b = raise_exponent(public_B, private_x) #! '' '' ''
     secret_input = shared_X__y + shared_X__b
 
     # Complete the remaining hashing, verification - for further reference, read section 5.1.4 and 5.2.2.
@@ -245,7 +245,7 @@ def get(hostname, port, path="", guard_address=None, middle_address=None, exit_a
     stream = new_tcp_stream(circuit, hostname, port) # BEGIN
 
     # Make an HTTP GET request to the web page at <hostname>:<port>/<path>
-    request = f'GET /{path} HTTP/1.1\r\nHost: {hostname}:{port}\r\n\r\n'
+    request = f'GET /{path} HTTP/1.0\r\nHost: {hostname}\r\n\r\n'
     logger.warning('Sending: %s %s:%s', request, hostname, port)
     stream.send(b'request') # Check new_tcp_stream() description
 
