@@ -146,8 +146,8 @@ def extend(circuit, node_router):
     public_Y = extended_cell.handshake_data[:32]  # Node's public key, Y
     auth_digest = extended_cell.handshake_data[32:]
 
-    shared_X__y = raise_exponent(public_Y, private_x) #! CHECK BACK
-    shared_X__b = raise_exponent(public_B, private_x) #! '' '' ''
+    shared_X__y = raise_exponent(public_Y, private_x)
+    shared_X__b = raise_exponent(public_B, private_x)
     secret_input = shared_X__y + shared_X__b
 
     # Complete the remaining hashing, verification - for further reference, read section 5.1.4 and 5.2.2.
