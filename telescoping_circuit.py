@@ -18,13 +18,14 @@ from dependency.torpy.circuit import random, TorCircuit, CircuitNode, NtorKeyAgr
 from dependency.torpy.documents.network_status import RouterFlags
 
 
-
 #
 # Helper functions
 #
 
 # Generate a unique 4-byte id for a circuit
 CIRCUIT_ID = random.randrange(0, 0xFFFFFFFF)
+
+
 def gen_circuit_id():
     global CIRCUIT_ID
     CIRCUIT_ID = ((CIRCUIT_ID + 1) & 0xFFFFFFFF) | 0x80000000
@@ -43,17 +44,20 @@ def get_all_exits(consensus):
 
 def random_router(onion_routers):
     router = random.choice(onion_routers)
-    logger.info('Selected node %s:%d AKA %s' % (router.ip, router.dir_port, router.nickname))
+    logger.info('Selected node %s:%d AKA %s' %
+                (router.ip, router.dir_port, router.nickname))
     return router
 
 
 # Lookup router by its IP address and return its descriptor as a router object
 def router_from_ip(ip, consensus):
     all_routers = consensus.get_routers([], has_dir_port=True, with_renew=True)
-    matching_routers = list(filter(lambda r: ip == ('%s:%d' % (r.ip, r.dir_port)), all_routers))
+    matching_routers = list(filter(lambda r: ip == (
+        '%s:%d' % (r.ip, r.dir_port)), all_routers))
     if matching_routers:
         router = matching_routers.pop()
-        logger.info('Selected node %s:%d AKA %s' % (router.ip, router.dir_port, router.nickname))
+        logger.info('Selected node %s:%d AKA %s' %
+                    (router.ip, router.dir_port, router.nickname))
         return router
     raise LookupError("No routers with the IP address %s" % ip)
 
@@ -82,7 +86,8 @@ def send_receive_cell_create(cell_create, circuit, circuit_node):
 
 # Send a Tor EXTEND cell and await an EXTENDED cell as the response
 def send_receive_cell_extend(cell_extend, circuit):
-    acknowledgement = [CellRelayExtended2, CellRelayTruncated]  # Wait for this type of response
+    # Wait for this type of response
+    acknowledgement = [CellRelayExtended2, CellRelayTruncated]
     return circuit.send_relay_wait(cell_extend, acknowledgement, relay_type=CellRelayEarly)
 
 
@@ -96,7 +101,6 @@ def raise_exponent(base, exponent):
 
 def random_bytes(count):
     return os.urandom(count)
-
 
 
 #
@@ -115,16 +119,19 @@ def extend(circuit, node_router):
         3. When a relay EXTENDED/EXTENDED2 cell is received, verify KH,
            and calculate the shared keys.  The circuit is now extended.
     """
-    logger.info('Extending the circuit #%x with %s...', circuit.id, node_router)
+    logger.info('Extending the circuit #%x with %s...',
+                circuit.id, node_router)
 
     node_extended = CircuitNode(node_router, NtorKeyAgreement)
 
-    key_agreement = node_extended.key_agreement  # See section 5.1.4 for full specification
+    # See section 5.1.4 for full specification
+    key_agreement = node_extended.key_agreement
 
     node_ID = key_agreement._fingerprint_bytes  # Server node's fingerprint
     private_x = key_agreement._x.private_bytes_raw()  # Client's private key, x
     public_X = key_agreement._X.public_bytes_raw()  # Client's public key, X
-    public_B = key_agreement._B.public_bytes_raw()  # Node's public "ntor onion" key, B
+    # Node's public "ntor onion" key, B
+    public_B = key_agreement._B.public_bytes_raw()
 
     # concatenation ID | B | X
     onion_skin = node_ID + public_B + public_X
@@ -151,7 +158,8 @@ def extend(circuit, node_router):
     secret_input = shared_X__y + shared_X__b
 
     # Complete the remaining hashing, verification - for further reference, read section 5.1.4 and 5.2.2.
-    shared_secret = node_extended.complete_handshake(secret_input, public_Y, auth_digest)
+    shared_secret = node_extended.complete_handshake(
+        secret_input, public_Y, auth_digest)
 
     node_extended.store_key(shared_secret)
 
@@ -172,17 +180,19 @@ def circuit_build_hops(circuit, middle_router, exit_router):
 
 # Create a circuit by establishing a shared secret with a first node
 def circuit_from_guard(guard_router, circuit_id):
-    logger.debug('[TorInfo] Create new base circuit from %s', guard_router.nickname)
+    logger.debug('[TorInfo] Create new base circuit from %s',
+                 guard_router.nickname)
 
     guard = TorGuard(guard_router, purpose='TorClient')
     circuit = TorCircuit(circuit_id, guard)
-    circuit_node = CircuitNode(guard_router, key_agreement_cls=FastKeyAgreement)
+    circuit_node = CircuitNode(
+        guard_router, key_agreement_cls=FastKeyAgreement)
 
     # We need to build a CREATE cell containing random digest (X) and the new circuit ID.
     # Then, we need to send it to the first node in the circuit we are trying to create here.
     # Note that TOR_DIGEST_LEN = HASH_LEN = 20 bytes
 
-    x = random_bytes(TOR_DIGEST_LEN) # Value is imported
+    x = random_bytes(TOR_DIGEST_LEN)  # Value is imported
 
     cell_create = build_create_cell(x, circuit_id)
 
@@ -190,7 +200,8 @@ def circuit_from_guard(guard_router, circuit_id):
 
     # Extract the two parts from the received CREATED cell
     y = cell_created.handshake_data[:TOR_DIGEST_LEN]  # Key material (Y)
-    key_hash = cell_created.handshake_data[TOR_DIGEST_LEN:]  # Derivative key data
+    # Derivative key data
+    key_hash = cell_created.handshake_data[TOR_DIGEST_LEN:]
 
     # Please reference 5.1.5 and 5.2.1 of the Tor protocol specification for how to compute K_0 before hashing.
     k0 = x + y
@@ -217,40 +228,42 @@ def get(hostname, port, path="", guard_address=None, middle_address=None, exit_a
     # the Tor circuit that will be used to request a web page.
 
     circuit_id = gen_circuit_id()
-    
-    consensus = TorClient().consensus # Piazza @224
-    
+
+    consensus = TorClient().consensus  # Piazza @224
+
     # If one of the addresses is specified, use it. Otherwise, pick a random node.
     if guard_address:
         guard_router = router_from_ip(guard_address, consensus)
     else:
         guard_router = random_router(get_all_relays(consensus))
-        
+
     if middle_address:
         middle_router = router_from_ip(middle_address, consensus)
     else:
         middle_router = random_router(get_all_relays(consensus))
-        
+
     if exit_address:
         exit_router = router_from_ip(exit_address, consensus)
     else:
-        exit_router = random_router(get_all_exits(consensus)) # Note get_all_exits() instead of get_all_relays()
+        # Note get_all_exits() instead of get_all_relays()
+        exit_router = random_router(get_all_exits(consensus))
 
-    circuit_base = circuit_from_guard(guard_router, circuit_id) # CREATE
+    circuit_base = circuit_from_guard(guard_router, circuit_id)  # CREATE
 
-    circuit = circuit_build_hops(circuit_base, middle_router, exit_router) # EXTEND
+    circuit = circuit_build_hops(
+        circuit_base, middle_router, exit_router)  # EXTEND
 
     # Use our established circuit to attach a TCP stream
     port = port or 80
-    stream = new_tcp_stream(circuit, hostname, port) # BEGIN
+    stream = new_tcp_stream(circuit, hostname, port)  # BEGIN
 
     # Make an HTTP GET request to the web page at <hostname>:<port>/<path>
     request = f'GET /{path} HTTP/1.0\r\nHost: {hostname}\r\n\r\n'
     logger.warning('Sending: %s %s:%s', request, hostname, port)
-    stream.send(b'request') # Check new_tcp_stream() description
+    stream.send(b'%s' % request.encode('utf-8'))
 
     logger.debug('Reading...')
-    recv = stream.recv(1024) # Check new_tcp_stream() description
+    recv = stream.recv(1024)  # Check new_tcp_stream() description
 
     return recv.decode('utf-8')
 
@@ -258,11 +271,16 @@ def get(hostname, port, path="", guard_address=None, middle_address=None, exit_a
 def main():
     parser = ArgumentParser()
     parser.add_argument('--url', help='url', required=True)
-    parser.add_argument('--mode', default='random', type=str.lower, help='random or specific route')
-    parser.add_argument('--guard', default=None, type=str, help='guard node ip address')
-    parser.add_argument('--middle', default=None, type=str, help='middle node ip address')
-    parser.add_argument('--exit', default=None, type=str, help='exit node ip address')
-    parser.add_argument('--outfile', default="", type=str, help='output file path')
+    parser.add_argument('--mode', default='random',
+                        type=str.lower, help='random or specific route')
+    parser.add_argument('--guard', default=None, type=str,
+                        help='guard node ip address')
+    parser.add_argument('--middle', default=None, type=str,
+                        help='middle node ip address')
+    parser.add_argument('--exit', default=None, type=str,
+                        help='exit node ip address')
+    parser.add_argument('--outfile', default="",
+                        type=str, help='output file path')
     args = parser.parse_args()
     url = urlparse(args.url)
 
