@@ -192,7 +192,7 @@ def circuit_from_guard(guard_router, circuit_id):
     # Then, we need to send it to the first node in the circuit we are trying to create here.
     # Note that TOR_DIGEST_LEN = HASH_LEN = 20 bytes
 
-    x = random_bytes(TOR_DIGEST_LEN)  # Value is imported
+    x = random_bytes(TOR_DIGEST_LEN)  # Random digest (X)
 
     cell_create = build_create_cell(x, circuit_id)
 
@@ -229,7 +229,7 @@ def get(hostname, port, path="", guard_address=None, middle_address=None, exit_a
 
     circuit_id = gen_circuit_id()
 
-    consensus = TorClient().consensus  # Piazza @224
+    consensus = tor.consensus  # Piazza @224
 
     # If one of the addresses is specified, use it. Otherwise, pick a random node.
     if guard_address:
@@ -260,10 +260,10 @@ def get(hostname, port, path="", guard_address=None, middle_address=None, exit_a
     # Make an HTTP GET request to the web page at <hostname>:<port>/<path>
     request = f'GET /{path} HTTP/1.0\r\nHost: {hostname}\r\n\r\n'
     logger.warning('Sending: %s %s:%s', request, hostname, port)
-    stream.send(b'%s' % request.encode('utf-8'))
+    stream.send(request.encode('utf-8'))
 
     logger.debug('Reading...')
-    recv = stream.recv(1024)  # Check new_tcp_stream() description
+    recv = stream.recv(4096)
 
     return recv.decode('utf-8')
 
